@@ -1,0 +1,75 @@
+private void SayHello_Enter() { } 
+private void SayHello_Update() { 
+    Helper.PlayAnim(m_anim, PlayerAnimState.SayHello.ToString()); 
+} 
+private void SayHello_Exit() { } 
+private void Walk_Enter() { } 
+private void Walk_Update() { 
+    Helper.PlayAnim(m_anim, PlayerAnimState.Walk.ToString()); 
+} 
+private void Walk_Exit() { } 
+private void Jump_Enter() { } 
+private void Jump_Update() { 
+    Helper.PlayAnim(m_anim, PlayerAnimState.Jump.ToString()); 
+} 
+private void Jump_Exit() { } 
+private void OnAir_Enter() { } 
+private void OnAir_Update() { 
+    Helper.PlayAnim(m_anim, PlayerAnimState.OnAir.ToString()); 
+} 
+private void OnAir_Exit() { } 
+private void Land_Enter() { } 
+private void Land_Update() { 
+    Helper.PlayAnim(m_anim, PlayerAnimState.Land.ToString()); 
+} 
+private void Land_Exit() { } 
+private void Swim_Enter() { } 
+private void Swim_Update() { 
+    Helper.PlayAnim(m_anim, PlayerAnimState.Swim.ToString()); 
+} 
+private void Swim_Exit() { } 
+private void FireBullet_Enter() { } 
+private void FireBullet_Update() { 
+    Helper.PlayAnim(m_anim, PlayerAnimState.FireBullet.ToString()); 
+} 
+private void FireBullet_Exit() { } 
+private void Fly_Enter() { } 
+private void Fly_Update() { 
+    Helper.PlayAnim(m_anim, PlayerAnimState.Fly.ToString()); 
+} 
+private void Fly_Exit() { } 
+private void FlyOnAir_Enter() { } 
+private void FlyOnAir_Update() { 
+    Helper.PlayAnim(m_anim, PlayerAnimState.FlyOnAir.ToString()); 
+} 
+private void FlyOnAir_Exit() { } 
+private void SwimOnDeep_Enter() { } 
+private void SwimOnDeep_Update() { 
+    Helper.PlayAnim(m_anim, PlayerAnimState.SwimOnDeep.ToString()); 
+} 
+private void SwimOnDeep_Exit() { } 
+private void OnLadder_Enter() { } 
+private void OnLadder_Update() { 
+    Helper.PlayAnim(m_anim, PlayerAnimState.OnLadder.ToString()); 
+} 
+private void OnLadder_Exit() { } 
+private void Dead_Enter() { } 
+private void Dead_Update() { 
+    Helper.PlayAnim(m_anim, PlayerAnimState.Dead.ToString()); 
+} 
+private void Dead_Exit() { } 
+private void Idle_Enter() { } 
+private void Idle_Update() { 
+    Helper.PlayAnim(m_anim, PlayerAnimState.Idle.ToString()); 
+} 
+private void Idle_Exit() { } 
+private void LadderIdle_Enter() { } 
+private void LadderIdle_Update() { 
+    Helper.PlayAnim(m_anim, PlayerAnimState.LadderIdle.ToString()); 
+} 
+private void LadderIdle_Exit() { } 
+private void HammerAttack_Enter() { } 
+private void HammerAttack_Update() { 
+    Helper.PlayAnim(m_anim, PlayerAnimState.HammerAttack.ToString()); 
+} 
+private void HammerAttack_Exit() { } 
