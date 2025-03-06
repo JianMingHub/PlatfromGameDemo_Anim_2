@@ -61,9 +61,95 @@ namespace UDEV.PlatfromGame
             m_fsm.ChangeState(PlayerAnimState.Idle);                        // Đặt trạng thái ban đầu của nhân vật là Idle (đứng yên).
             // FSM_MethodGen.Gen<PlayerAnimState>();                        // tạo các hàm tự động
         }
+        protected override void Init()
+        {
+            base.Init();
+            if (stat != null)
+            {
+                m_curStat = (PlayerStat)stat;
+            }
+        }
+        private void Update()
+        {
+            ActionHandle();
+        }
         private void ActionHandle()
         {
+            if (IsAttacking || m_isKnockBack) return;
 
+            if (GamepadController.Ins.IsStatic)
+            {
+                m_rb.velocity = new Vector2(0f, m_rb.velocity.y);
+            }
+            // Nếu Player chạm vào thang và trạng thái hiện tại khác với trạng thái LadderIdle và trạng thái hiện tại khác với OnLadder
+            if (obstacleChker.IsOnLadder && m_fsm.State != PlayerAnimState.LadderIdle && m_fsm.State != PlayerAnimState.OnLadder)
+            {
+                ChangeState(PlayerAnimState.LadderIdle);
+            }
+            Debug.Log(m_fsm.State);
+        }
+        protected override void Dead()
+        {
+            if (IsDead) return;
+            base.Dead();
+            ChangeState(PlayerAnimState.Dead);
+        }
+        private void Move(Direction dir)
+        {
+            // Nếu đang bị đẩy lùi thì ngắt code
+            if (m_isKnockBack) return;
+
+            // Chuyển sang dạng bình thường
+            m_rb.isKinematic = false;
+
+            // Nếu hướng di chuyển sang trái or phải
+            if(dir == Direction.Left || dir == Direction.Right)
+            {
+                Flip(dir);
+
+                m_hozDir = dir == Direction.Left ? -1 : 1;
+                Debug.Log("udev" + m_hozDir);
+                // Debug.LogWarning("walking");
+                m_rb.velocity = new Vector2(m_hozDir * m_curSpeed, m_rb.velocity.y);
+            }
+            // Nếu hướng di chuyển lên or xuống
+            else if(dir == Direction.Up || dir == Direction.Down)
+            {
+                m_vertDir = dir == Direction.Down ? -1 : 1;
+                m_rb.velocity = new Vector2(m_rb.velocity.x, m_vertDir * m_curSpeed);
+            }
+        }
+        private void Jump()
+        {   
+            GamepadController.Ins.CanJump = false;              // ngăn người chơi nhấn nút jump nhiều lần
+            m_rb.velocity = new Vector2(m_rb.velocity.x, 0f);   // reset vận tốc
+            m_rb.isKinematic = false;                           // Chuyển sang dạng bình thường
+            m_rb.gravityScale = m_startingGrav;                 // xét lại lực hút trái đất
+            m_rb.velocity = new Vector2(m_rb.velocity.x, m_curStat.jumpForce);  // bắt đầu xét vận tốc
+        }
+        private void JumpChecking()
+        {
+            if (GamepadController.Ins.CanJump)
+            {
+                Jump();
+                ChangeState(PlayerAnimState.Jump);
+            }
+        }
+        private void HozMoveChecking()
+        {
+            Debug.Log("udev" + GamepadController.Ins.CanMoveLeft);
+            if (GamepadController.Ins.CanMoveLeft) Move(Direction.Left);
+            if (GamepadController.Ins.CanMoveRight) Move(Direction.Right);
+        }
+        private void VerMoveChecking()
+        {
+            Debug.Log("VerMoveChecking");
+            if (IsJumping) return;
+
+            if (GamepadController.Ins.CanMoveUp) Move(Direction.Up);
+            else if (GamepadController.Ins.CanMoveDown) Move(Direction.Down);
+
+            GamepadController.Ins.CanFly = false;
         }
         public void ChangeState(PlayerAnimState state)
         {
@@ -106,23 +192,60 @@ namespace UDEV.PlatfromGame
                 Helper.PlayAnim(m_anim, PlayerAnimState.SayHello.ToString()); 
             } 
             private void SayHello_Exit() { } 
-            private void Walk_Enter() { } 
+            private void Walk_Enter() { 
+                ActiveCol(PlayerCollider.Default);
+                m_curSpeed = stat.moveSpeed;
+            } 
             private void Walk_Update() { 
+                JumpChecking();
+                if (!obstacleChker.IsOnGround)
+                {
+                    ChangeState(PlayerAnimState.OnAir);
+                }
+                if (!GamepadController.Ins.CanMoveLeft && !GamepadController.Ins.CanMoveRight)
+                {
+                    ChangeState(PlayerAnimState.Idle);
+                }
+                HozMoveChecking();
                 Helper.PlayAnim(m_anim, PlayerAnimState.Walk.ToString()); 
             } 
             private void Walk_Exit() { } 
-            private void Jump_Enter() { } 
+            private void Jump_Enter() { 
+                ActiveCol(PlayerCollider.Default);
+            } 
             private void Jump_Update() { 
+                m_rb.isKinematic = false;
+                // Nếu vận tốc rơi xuống (velocity.y < 0) và không chạm đất (!obstacleChker.IsOnGround), => sang trạng thái OnAir.
+                if (m_rb.velocity.y < 0 && !obstacleChker.IsOnGround)
+                {
+                    ChangeState(PlayerAnimState.OnAir);
+                }
+                HozMoveChecking();
                 Helper.PlayAnim(m_anim, PlayerAnimState.Jump.ToString()); 
             } 
             private void Jump_Exit() { } 
-            private void OnAir_Enter() { } 
+            private void OnAir_Enter() { 
+                ActiveCol(PlayerCollider.Default);
+            } 
             private void OnAir_Update() { 
+                m_rb.gravityScale = m_startingGrav;
+                if (obstacleChker.IsOnGround)
+                {
+                    ChangeState(PlayerAnimState.Land);
+                }
+                if (GamepadController.Ins.CanFly)
+                {
+                    ChangeState(PlayerAnimState.Fly);
+                }
                 Helper.PlayAnim(m_anim, PlayerAnimState.OnAir.ToString()); 
             } 
             private void OnAir_Exit() { } 
-            private void Land_Enter() { } 
+            private void Land_Enter() { 
+                ActiveCol(PlayerCollider.Default);
+                ChangeStateDelay(PlayerAnimState.Idle);
+            } 
             private void Land_Update() { 
+                m_rb.velocity = Vector2.zero;
                 Helper.PlayAnim(m_anim, PlayerAnimState.Land.ToString()); 
             } 
             private void Land_Exit() { } 
@@ -136,13 +259,30 @@ namespace UDEV.PlatfromGame
                 Helper.PlayAnim(m_anim, PlayerAnimState.FireBullet.ToString()); 
             } 
             private void FireBullet_Exit() { } 
-            private void Fly_Enter() { } 
+            private void Fly_Enter() { 
+                ActiveCol(PlayerCollider.Flying);
+                ChangeStateDelay(PlayerAnimState.FlyOnAir);
+            } 
             private void Fly_Update() { 
+                HozMoveChecking();
+                m_rb.velocity = new Vector2(m_rb.velocity.x, -m_curStat.flyingSpeed);
                 Helper.PlayAnim(m_anim, PlayerAnimState.Fly.ToString()); 
             } 
             private void Fly_Exit() { } 
-            private void FlyOnAir_Enter() { } 
+            private void FlyOnAir_Enter() { 
+                ActiveCol(PlayerCollider.Flying);
+            } 
             private void FlyOnAir_Update() { 
+                HozMoveChecking();
+                m_rb.velocity = new Vector2(m_rb.velocity.x, -m_curStat.flyingSpeed);
+                if (obstacleChker.IsOnGround)
+                {
+                    ChangeState(PlayerAnimState.Land);
+                }
+                if (!GamepadController.Ins.CanFly)
+                {
+                    ChangeState(PlayerAnimState.OnAir);
+                }
                 Helper.PlayAnim(m_anim, PlayerAnimState.FlyOnAir.ToString()); 
             } 
             private void FlyOnAir_Exit() { } 
@@ -151,8 +291,26 @@ namespace UDEV.PlatfromGame
                 Helper.PlayAnim(m_anim, PlayerAnimState.SwimOnDeep.ToString()); 
             } 
             private void SwimOnDeep_Exit() { } 
-            private void OnLadder_Enter() { } 
+            private void OnLadder_Enter() { 
+                m_rb.velocity = Vector2.zero;
+                ActiveCol(PlayerCollider.Default);
+            } 
             private void OnLadder_Update() { 
+                VerMoveChecking();
+                HozMoveChecking();
+
+                if (!GamepadController.Ins.CanMoveUp && !GamepadController.Ins.CanMoveDown)
+                {
+                    m_rb.velocity = new Vector2(m_rb.velocity.x, 0f);
+                    ChangeState(PlayerAnimState.LadderIdle);
+                }
+                if (!obstacleChker.IsOnLadder)
+                {
+                    ChangeState(PlayerAnimState.OnAir);
+                }
+                GamepadController.Ins.CanFly = false;
+                m_rb.gravityScale = 0f;
+
                 Helper.PlayAnim(m_anim, PlayerAnimState.OnLadder.ToString()); 
             } 
             private void OnLadder_Exit() { } 
@@ -161,13 +319,35 @@ namespace UDEV.PlatfromGame
                 Helper.PlayAnim(m_anim, PlayerAnimState.Dead.ToString()); 
             } 
             private void Dead_Exit() { } 
-            private void Idle_Enter() { } 
+            private void Idle_Enter() { 
+                ActiveCol(PlayerCollider.Default);
+            } 
             private void Idle_Update() { 
+                JumpChecking();
+                if (GamepadController.Ins.CanMoveLeft || GamepadController.Ins.CanMoveRight)
+                {
+                    ChangeState(PlayerAnimState.Walk);
+                }
                 Helper.PlayAnim(m_anim, PlayerAnimState.Idle.ToString()); 
             } 
             private void Idle_Exit() { } 
-            private void LadderIdle_Enter() { } 
+            private void LadderIdle_Enter() { 
+                m_rb.velocity = Vector2.zero;
+                ActiveCol(PlayerCollider.Default);
+                m_curSpeed = m_curStat.ladderSpeed;
+            } 
             private void LadderIdle_Update() { 
+                if (GamepadController.Ins.CanMoveUp || GamepadController.Ins.CanMoveDown)
+                {
+                    ChangeState(PlayerAnimState.OnLadder);
+                }
+                if (!obstacleChker.IsOnLadder)
+                {
+                    ChangeState(PlayerAnimState.OnAir);
+                }
+                GamepadController.Ins.CanFly = false;
+                m_rb.gravityScale = 0;
+                HozMoveChecking();
                 Helper.PlayAnim(m_anim, PlayerAnimState.LadderIdle.ToString()); 
             } 
             private void LadderIdle_Exit() { } 
