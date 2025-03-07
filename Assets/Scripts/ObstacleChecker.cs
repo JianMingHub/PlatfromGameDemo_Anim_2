@@ -39,7 +39,7 @@ namespace UDEV.PlatfromGame
             // else
             //     Debug.Log("Đang ở trên mặt nước");
 
-            Debug.Log($"Ground : {m_isOnGround} _ Water: {m_isOnWater} _ Ladder : {m_isOnLadder}");
+            // Debug.Log($"Ground : {m_isOnGround} _ Water: {m_isOnWater} _ Ladder : {m_isOnLadder}");
         }
 
         private bool OverlapChecking(LayerMask layerToCheck)

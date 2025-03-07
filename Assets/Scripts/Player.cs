@@ -73,6 +73,10 @@ namespace UDEV.PlatfromGame
         {
             ActionHandle();
         }
+        private void FixedUpdate()
+        {
+            SmoothJump();
+        }
         private void ActionHandle()
         {
             if (IsAttacking || m_isKnockBack) return;
@@ -86,7 +90,14 @@ namespace UDEV.PlatfromGame
             {
                 ChangeState(PlayerAnimState.LadderIdle);
             }
-            Debug.Log(m_fsm.State);
+            // Handle Attacking
+            if (!obstacleChker.IsOnWater)
+            {
+                AttackChecking(); 
+            }
+            // reset timer
+            ReduceActionRate(ref m_isAttacked, ref m_attackTime, m_curStat.attackRate);
+            // Debug.Log(m_fsm.State);
         }
         protected override void Dead()
         {
@@ -96,31 +107,42 @@ namespace UDEV.PlatfromGame
         }
         private void Move(Direction dir)
         {
-            // Nếu đang bị đẩy lùi thì ngắt code
             if (m_isKnockBack) return;
-
-            // Chuyển sang dạng bình thường
             m_rb.isKinematic = false;
 
-            // Nếu hướng di chuyển sang trái or phải
-            if(dir == Direction.Left || dir == Direction.Right)
+            if (dir == Direction.Left || dir == Direction.Right)
             {
                 Flip(dir);
-
+                
                 m_hozDir = dir == Direction.Left ? -1 : 1;
-                Debug.Log("udev" + m_hozDir);
-                // Debug.LogWarning("walking");
+                // Debug.Log("m_hozDir: " + m_hozDir);
                 m_rb.velocity = new Vector2(m_hozDir * m_curSpeed, m_rb.velocity.y);
+
             }
-            // Nếu hướng di chuyển lên or xuống
-            else if(dir == Direction.Up || dir == Direction.Down)
+            else if (dir == Direction.Up || dir == Direction.Down)
             {
                 m_vertDir = dir == Direction.Down ? -1 : 1;
                 m_rb.velocity = new Vector2(m_rb.velocity.x, m_vertDir * m_curSpeed);
             }
         }
+        private void HozMoveChecking()
+        {
+            // Debug.Log("Left: " + GamepadController.Ins.CanMoveLeft);
+            if (GamepadController.Ins.CanMoveLeft) Move(Direction.Left);
+            else if (GamepadController.Ins.CanMoveRight) Move(Direction.Right);
+        }
+        private void VerMoveChecking()
+        {
+            // Debug.Log("VerMoveChecking");
+            if (IsJumping) return;
+
+            if (GamepadController.Ins.CanMoveUp) Move(Direction.Up);
+            else if (GamepadController.Ins.CanMoveDown) Move(Direction.Down);
+
+            GamepadController.Ins.CanFly = false;
+        }
         private void Jump()
-        {   
+        {
             GamepadController.Ins.CanJump = false;              // ngăn người chơi nhấn nút jump nhiều lần
             m_rb.velocity = new Vector2(m_rb.velocity.x, 0f);   // reset vận tốc
             m_rb.isKinematic = false;                           // Chuyển sang dạng bình thường
@@ -135,27 +157,74 @@ namespace UDEV.PlatfromGame
                 ChangeState(PlayerAnimState.Jump);
             }
         }
-        private void HozMoveChecking()
+        private void SmoothJump()
         {
-            Debug.Log("udev" + GamepadController.Ins.CanMoveLeft);
-            if (GamepadController.Ins.CanMoveLeft) Move(Direction.Left);
-            if (GamepadController.Ins.CanMoveRight) Move(Direction.Right);
+            if (obstacleChker.IsOnGround || (obstacleChker.IsOnWater && IsJumping)) return;
+
+            if (m_rb.velocity.y < 0)
+            {
+                m_rb.velocity += Vector2.up * Physics2D.gravity.y * (jumpingFallingMultipiler - 1) * Time.deltaTime;
+            }
+            else if (m_rb.velocity.y > 0 && !GamepadController.Ins.IsJumpHolding)
+            {
+                m_rb.velocity += Vector2.up * Physics2D.gravity.y * (lowJumpingMultipiler - 1) * Time.deltaTime;
+            }
         }
-        private void VerMoveChecking()
+        private void WaterChecking()
         {
-            Debug.Log("VerMoveChecking");
-            if (IsJumping) return;
+            if (obstacleChker.IsOnLadder) return;
 
-            if (GamepadController.Ins.CanMoveUp) Move(Direction.Up);
-            else if (GamepadController.Ins.CanMoveDown) Move(Direction.Down);
-
-            GamepadController.Ins.CanFly = false;
+            // ở dưới sâu
+            if (obstacleChker.IsOnDeepWater)
+            {
+                m_rb.gravityScale = 0f;
+                m_rb.velocity = new Vector2(m_rb.velocity.x, 0f);
+                ChangeState(PlayerAnimState.SwimOnDeep);
+            }
+            // ở trên mặt nước
+            else if(obstacleChker.IsOnWater && !IsJumping)
+            {
+                // giảm thời gian ở dưới nước
+                m_waterFallingTime -= Time.deltaTime;
+                if(m_waterFallingTime <= 0)
+                {
+                    m_rb.gravityScale = 0f;
+                    m_rb.velocity = Vector2.zero;
+                }
+                // ko cho người chơi nhấn nút lên trên nữa
+                GamepadController.Ins.CanMoveUp = false;
+                // Chuyển sang trạng thái swim
+                ChangeState(PlayerAnimState.Swim);
+            }
+        }
+        // Fix lỗi bay trong nước
+        private void OnWaterChecking()
+        {
+            if (obstacleChker.IsOnWater)
+            {
+                m_rb.velocity = new Vector2(0f, m_rb.velocity.y);
+                WaterChecking();
+            }
+        }
+        private void AttackChecking()
+        {
+            if (GamepadController.Ins.CanAttack)
+            {
+                if (m_isAttacked) return;
+                
+                ChangeState(PlayerAnimState.HammerAttack);
+            }
+            else if (GamepadController.Ins.CanFire)
+            {
+                // kiem tra xem co con đủ đạn hay khong
+                // thi moi chuyen trang thai
+                ChangeState(PlayerAnimState.FireBullet);
+            }
         }
         public void ChangeState(PlayerAnimState state)
         {
             m_prevState = m_fsm.State;
             m_fsm.ChangeState(state);           // Thay đổi trạng thái mới bằng cách gọi m_fsm.ChangeState(state).
-
         }
         private IEnumerator ChangeStateDelayCo(PlayerAnimState newState, float timeExtra = 0)
         {
@@ -228,7 +297,7 @@ namespace UDEV.PlatfromGame
                 ActiveCol(PlayerCollider.Default);
             } 
             private void OnAir_Update() { 
-                m_rb.gravityScale = m_startingGrav;
+                m_rb.gravityScale = m_startingGrav;                 // xét lại lực hút trái đất
                 if (obstacleChker.IsOnGround)
                 {
                     ChangeState(PlayerAnimState.Land);
@@ -237,24 +306,36 @@ namespace UDEV.PlatfromGame
                 {
                     ChangeState(PlayerAnimState.Fly);
                 }
+                OnWaterChecking();
                 Helper.PlayAnim(m_anim, PlayerAnimState.OnAir.ToString()); 
             } 
             private void OnAir_Exit() { } 
             private void Land_Enter() { 
                 ActiveCol(PlayerCollider.Default);
-                ChangeStateDelay(PlayerAnimState.Idle);
+                ChangeState(PlayerAnimState.Idle);
             } 
             private void Land_Update() { 
                 m_rb.velocity = Vector2.zero;
-                Helper.PlayAnim(m_anim, PlayerAnimState.Land.ToString()); 
+               Helper.PlayAnim(m_anim, PlayerAnimState.Land.ToString());
             } 
             private void Land_Exit() { } 
-            private void Swim_Enter() { } 
+            private void Swim_Enter() { 
+                m_curSpeed = m_curStat.swimSpeed;
+                ActiveCol(PlayerCollider.InWater);
+            } 
             private void Swim_Update() { 
+                JumpChecking();
+                WaterChecking();
+                HozMoveChecking();
+                VerMoveChecking();
                 Helper.PlayAnim(m_anim, PlayerAnimState.Swim.ToString()); 
             } 
-            private void Swim_Exit() { } 
-            private void FireBullet_Enter() { } 
+            private void Swim_Exit() { 
+                m_waterFallingTime = 1;
+            } 
+            private void FireBullet_Enter() { 
+                ChangeStateDelay(PlayerAnimState.Idle);
+            } 
             private void FireBullet_Update() { 
                 Helper.PlayAnim(m_anim, PlayerAnimState.FireBullet.ToString()); 
             } 
@@ -264,6 +345,7 @@ namespace UDEV.PlatfromGame
                 ChangeStateDelay(PlayerAnimState.FlyOnAir);
             } 
             private void Fly_Update() { 
+                OnWaterChecking();
                 HozMoveChecking();
                 m_rb.velocity = new Vector2(m_rb.velocity.x, -m_curStat.flyingSpeed);
                 Helper.PlayAnim(m_anim, PlayerAnimState.Fly.ToString()); 
@@ -273,6 +355,7 @@ namespace UDEV.PlatfromGame
                 ActiveCol(PlayerCollider.Flying);
             } 
             private void FlyOnAir_Update() { 
+                OnWaterChecking();
                 HozMoveChecking();
                 m_rb.velocity = new Vector2(m_rb.velocity.x, -m_curStat.flyingSpeed);
                 if (obstacleChker.IsOnGround)
@@ -286,11 +369,21 @@ namespace UDEV.PlatfromGame
                 Helper.PlayAnim(m_anim, PlayerAnimState.FlyOnAir.ToString()); 
             } 
             private void FlyOnAir_Exit() { } 
-            private void SwimOnDeep_Enter() { } 
+            private void SwimOnDeep_Enter() { 
+                ActiveCol(PlayerCollider.InWater);
+                m_curSpeed = m_curStat.swimSpeed;
+                m_rb.velocity = Vector2.zero;
+            } 
             private void SwimOnDeep_Update() { 
+                WaterChecking();
+                HozMoveChecking();
+                VerMoveChecking();
                 Helper.PlayAnim(m_anim, PlayerAnimState.SwimOnDeep.ToString()); 
             } 
-            private void SwimOnDeep_Exit() { } 
+            private void SwimOnDeep_Exit() { 
+                m_rb.velocity = Vector2.zero;
+                GamepadController.Ins.CanMoveUp = false;
+            } 
             private void OnLadder_Enter() { 
                 m_rb.velocity = Vector2.zero;
                 ActiveCol(PlayerCollider.Default);
@@ -310,7 +403,6 @@ namespace UDEV.PlatfromGame
                 }
                 GamepadController.Ins.CanFly = false;
                 m_rb.gravityScale = 0f;
-
                 Helper.PlayAnim(m_anim, PlayerAnimState.OnLadder.ToString()); 
             } 
             private void OnLadder_Exit() { } 
@@ -332,8 +424,8 @@ namespace UDEV.PlatfromGame
             } 
             private void Idle_Exit() { } 
             private void LadderIdle_Enter() { 
-                m_rb.velocity = Vector2.zero;
                 ActiveCol(PlayerCollider.Default);
+                m_rb.velocity = Vector2.zero;
                 m_curSpeed = m_curStat.ladderSpeed;
             } 
             private void LadderIdle_Update() { 
@@ -351,8 +443,12 @@ namespace UDEV.PlatfromGame
                 Helper.PlayAnim(m_anim, PlayerAnimState.LadderIdle.ToString()); 
             } 
             private void LadderIdle_Exit() { } 
-            private void HammerAttack_Enter() { } 
+            private void HammerAttack_Enter() { 
+                m_isAttacked = true;
+                ChangeStateDelay(PlayerAnimState.Idle);
+            } 
             private void HammerAttack_Update() { 
+                m_rb.velocity = Vector2.zero;
                 Helper.PlayAnim(m_anim, PlayerAnimState.HammerAttack.ToString()); 
             } 
             private void HammerAttack_Exit() { } 
